@@ -1,25 +1,41 @@
-$TenantID = "$(TenantID)"
-$ClientID = "$(ClientID)"
-$ClientSecret = "$(ClientSecret)"
-$SenderMailAccount = "$(SenderMailAccount)"
-$SenderMailPassword = "$(SenderMailPassword)"
-$DatasetName
-$TestWorkspaceName = "$(TestWorkspaceName)"
-$ProdWorkspaceName = "$(ProdWorkspaceName)"
-$Workspace_Processing = "powerbi://api.powerbi.com/v1.0/myorg/$TestWorkspaceName"
-$Workspace_Publish = "powerbi://api.powerbi.com/v1.0/myorg/$ProdWorkspaceName"
-$FeatureArray = "$(FeatureArray)"
-$ShowChangesOnly = "$(ShowChangesOnly)"
-$IsExportToExcel = "$(IsExportToExcel)"
-$IsSendMail = "$(IsSendMail)"
-$MailReceipients = "$(MailReceipients)"
-$DirectoryPath = "$(Build.ArtifactStagingDirectory)"
+# Program Name: Power BI Dataset Comparisonc   
+# Date: 01/14/2024
+# Author: Rahul Gaur
+# Description: Created a PowerShell script for comparing Power BI dataset features, such as Measure Values, Table Attributes, Relationships, and Measure Definitions.
 
-Install-Module -Name MicrosoftPowerBIMgmt -Scope CurrentUser -Force -AllowClobber
+# Feature Descriptions:
+# 1. Measure Value: Compares measure values in the Power BI dataset. [Feature under development]
+# 2. Schema: Compares table attributes in the Power BI dataset.
+# 3. Relationship: Compares relationships between tables in the Power BI dataset.
+# 4. Definition: Compares measure definitions in the Power BI dataset.
+
+# Modification Log
+# ------------------------------------------------------------------------------------------------------------------
+# Date         Author         Description of Changes
+# ------------------------------------------------------------------------------------------------------------------
+# 01/18/2024   Rahul Gaur        Initial script creation for Power BI dataset feature comparison and automated mail generation.
+
+param(
+    $TenantID = "38e4b7d8-5034-9472-73a3-0ba2ca01ac84",
+    $ClientID,
+    $ClientSecret,
+    $SenderMailAccount,
+    $SenderMailPassword,
+    $DatasetName,
+    $TestWorkspaceName,
+    $ProdWorkspaceName,
+    $Workspace_Processing = "powerbi://api.powerbi.com/v1.0/myorg/$TestWorkspaceName",
+    $Workspace_Publish = "powerbi://api.powerbi.com/v1.0/myorg/$ProdWorkspaceName",
+    $FeatureArray = "2,3,4",
+    $ShowChangesOnly = "1",
+    $IsExportToExcel = "1",
+    $IsSendMail = "1",
+    $MailReceipients = "rahulgaur0304@gmail.com",
+    $DirectoryPath = ""
+)
 Install-Module -Name ImportExcel -Scope CurrentUser -Force -AllowClobber
-Import-Module -Name MicrosoftPowerBIMgmt
-Import-Module ImportExcel
 Import-Module SqlServer
+Import-Module ImportExcel
 
 $CurrentDate = Get-Date -Format "dddd MM/dd/yyyy"
 $SecuredApplicationSecret = ConvertTo-SecureString -String $ClientSecret -AsPlainText -Force
@@ -545,19 +561,4 @@ function ExecuteFeatures {
         ExportToExcel -FunctionName $FunctionName -ExcelResult $ExcelResult
     }
 }
-
-Connect-PowerBIServiceAccount -ServicePrincipal -Tenant $TenantID -Credential $credential
-$TestWorkspaceID = (Get-PowerBIWorkspace -Name "$TestWorkspaceName").Id
-
-$sourceBranchName, $targetBranchName = "$(System.PullRequest.SourceBranch)", "$(System.PullRequest.TargetBranch)" -replace 'refs/heads/', ''
-$changedFiles = git diff "origin/$targetBranchName...origin/$sourceBranchName" --name-only --diff-filter=M
-foreach ($file in $changedFiles) {
-    if ($file -like "*.pbix") {
-        $DatasetName = [System.IO.Path]::GetFileNameWithoutExtension($file)
-        $FilePath = "$((Get-Location).path)\$file"
-        Write-Host "DatasetName: $DatasetName`nProdWorkspaceName: $ProdWorkspaceName`nTestWorkspaceName: $TestWorkspaceName"
-        New-PowerBIReport -Path $FilePath -Name $DatasetName -WorkspaceId $TestWorkspaceID -ConflictAction "CreateOrOverwrite"
-        Write-Host "Dataset Publish Successfully"
-        ExecuteFeatures
-    }
-}
+ExecuteFeatures

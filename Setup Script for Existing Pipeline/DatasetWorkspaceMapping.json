@@ -1,0 +1,11 @@
+{
+    "DatasetName1": {
+        "ProdWorkspaceName": "Prod1",
+        "TestWorkspaceName": "Test1"
+    },
+    "DatasetName2": {
+        "ProdWorkspaceName": "Prod2",
+        "TestWorkspaceName": "Test2"
+    }
+
+}
