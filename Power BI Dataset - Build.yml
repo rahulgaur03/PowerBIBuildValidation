@@ -1,0 +1,44 @@
+jobs:
+- job: Job_1
+  displayName: Power BI Publish
+  pool:
+    vmImage: windows-latest
+  steps:
+  - checkout: self
+  - task: CopyFiles@2
+    displayName: Copy Files
+    inputs:
+      SourceFolder: PowerBIDataset/$(DatasetFolderName)
+      TargetFolder: $(Build.ArtifactStagingDirectory)
+  - task: PowerShell@2
+    displayName: Build Validation
+    inputs:
+      targetType: inline
+      script: >-
+        if ("$(Build.Reason)" -eq "PullRequest") {
+            Install-Module -Name MicrosoftPowerBIMgmt -Scope CurrentUser -Force -AllowClobber
+            Import-Module -Name MicrosoftPowerBIMgmt
+            Connect-PowerBIServiceAccount -ServicePrincipal -Tenant "39e4b8d8-5034-4760-84a3-0ba2ca73ac84" -Credential (New-Object PSCredential "$(PowerBI-API-Client-ID)", (ConvertTo-SecureString -String "$(PowerBI-API-Client-Secret)" -AsPlainText -Force))
+
+            $jsonObject = Get-Content -Raw -Path "$((Get-Location).path)\Tools\DatasetWorkspaceMapping.json" | ConvertFrom-Json
+            $sourceBranchName, $targetBranchName = "$(System.PullRequest.SourceBranch)", "$(System.PullRequest.TargetBranch)" -replace 'refs/heads/', ''
+            $changedFiles = git diff "origin/$targetBranchName...origin/$sourceBranchName" --name-only --diff-filter=M
+            foreach ($file in $changedFiles) {
+                if ($file -like "PowerBIDataset/*.pbix") {
+                    $DatasetName = [System.IO.Path]::GetFileNameWithoutExtension($file)
+                    $FilePath = "$((Get-Location).path)\$file"
+                    $ProdWorkspaceName = $jsonObject.$DatasetName.ProdWorkspaceName.Trim()
+                    $TestWorkspaceName = $jsonObject.$DatasetName.TestWorkspaceName.Trim()
+                    Write-Host "DatasetName: $DatasetName`nProdWorkspaceName: $ProdWorkspaceName`nTestWorkspaceName: $TestWorkspaceName"
+                    $TestWorkspaceID = (Get-PowerBIWorkspace -Name "$TestWorkspaceName").Id
+                    New-PowerBIReport -Path $FilePath -Name $DatasetName -WorkspaceId $TestWorkspaceID -ConflictAction "CreateOrOverwrite"
+                    Write-Host "Dataset Publish Successfully"
+                    & "$(Get-Location)\Tools\DataModelAnalyzer.ps1" -ClientID "$(PowerBI-API-Client-ID)" -ClientSecret "$(PowerBI-API-Client-Secret)" -SenderMailAccount "$(EDW-Email-ServiceAccount-UserName)" -SenderMailPassword "$(EDW-Email-ServiceAccount-Secret)" -DatasetName $DatasetName -ProdWorkspaceName $ProdWorkspaceName -TestWorkspaceName $TestWorkspaceName -DirectoryPath "$(Build.ArtifactStagingDirectory)"
+                }
+            }
+        }
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Artifact: DROP'
+    inputs:
+      ArtifactName: DROP
+...
